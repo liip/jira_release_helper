@@ -18,19 +18,21 @@ def get_issues_in_deployment(jira_prefix, remote_version, to_deploy_version, git
     @rtype: List[Str]
     """
     path = os.path.join(os.getcwd(), git_path)
+    if not os.path.exists(path) or not os.path.isdir(path):
+        sys.exit(f"{path} is not a directory")
     changes = subprocess.check_output("git log --no-color --oneline".split() + [f"{remote_version}..{to_deploy_version}"],
                                       cwd=path, text=True)
 
     changes = changes.split("\n")
 
-    issues = []
+    issues = set()
 
     for change in changes:
         test = re.match(f"(.*)({jira_prefix}\d+)(.*)", change)
         if test:
-            issues.append(test.groups()[1])
+            issues.add(test.groups()[1])
 
-    return issues
+    return list(issues)
 
 
 class JiraReleaseHelper(object):
