@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 setup(
     name='jira-release-helper',
-    version='1.0',
+    version='1.0.1',
     author='Danick Fort',
     description='Helps commenting on Jira issues when deploying code',
     packages=find_packages(),
