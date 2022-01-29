@@ -5,6 +5,8 @@ import sys
 
 import fire
 
+from .changelog import Changelog, ChangelogGenerationError
+
 
 def get_issues_in_deployment(jira_prefix, remote_version, to_deploy_version, git_path):
     """
@@ -20,8 +22,12 @@ def get_issues_in_deployment(jira_prefix, remote_version, to_deploy_version, git
     path = os.path.join(os.getcwd(), git_path)
     if not os.path.exists(path) or not os.path.isdir(path):
         sys.exit(f"{path} is not a directory")
-    changes = subprocess.check_output("git log --no-color --oneline".split() + [f"{remote_version}..{to_deploy_version}"],
-                                      cwd=path, text=True)
+    changes = subprocess.check_output(
+        "git log --no-color --oneline".split()
+        + [f"{remote_version}..{to_deploy_version}"],
+        cwd=path,
+        text=True,
+    )
 
     changes = changes.split("\n")
 
@@ -49,7 +55,9 @@ class JiraReleaseHelper(object):
             password = os.environ["JIRA_PASSWORD"]
             url = os.environ["JIRA_URL"]
         except KeyError:
-            sys.exit("Please set JIRA_USERNAME, JIRA_PASSWORD and JIRA_URL environment variables")
+            sys.exit(
+                "Please set JIRA_USERNAME, JIRA_PASSWORD and JIRA_URL environment variables"
+            )
 
         try:
             self.jira = JIRA(url, basic_auth=(username, password))
@@ -153,6 +161,36 @@ class JiraReleaseHelper(object):
         for issue in issues:
             self.__comment_confirm_deploy(environment, issue)
             self.__close_and_resolve(issue)
+
+    def generate_changelog(
+        self,
+        jira_prefix,
+        remote_version,
+        to_deploy_version="HEAD",
+        git_path=".",
+        changelog_path="CHANGELOG.md",
+    ):
+        """
+        Generates/updates a changelog data file found in git_path, based on JIRA issues to be deployed
+        @param jira_prefix: The prefix of the JIRA issue
+        @param remote_version: The version currently live on the remote server
+        @param to_deploy_version: The version to be deployed
+        @param git_path: The path of the local git repository
+        @return: None
+        """
+
+        issues = get_issues_in_deployment(
+            jira_prefix, remote_version, to_deploy_version, git_path
+        )
+
+        full_changelog_path = os.path.join(git_path, changelog_path)
+
+        try:
+            changelog_gen = Changelog(self.jira, full_changelog_path)
+            changelog_gen.create_or_update_changelog(issues, to_deploy_version)
+        except ChangelogGenerationError as exc:
+            # sys err?
+            raise
 
 
 def main():
