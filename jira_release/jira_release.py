@@ -10,7 +10,7 @@ def get_issues_in_deployment(jira_prefix, remote_version, to_deploy_version, git
     """
     Returns a list of Jira issues that are found in the commit messages to deploy.
     This list is determined by matching a pattern in the pending commits' message
-    @param jira_prefix: The prefix of the Jira issue
+    @param jira_prefix. The prefix(es) of the Jira issue. List of str or str.
     @param remote_version: The version currently live on the remote server
     @param to_deploy_version: The version to be deployed
     @param git_path: The path of the local git repository
@@ -20,17 +20,34 @@ def get_issues_in_deployment(jira_prefix, remote_version, to_deploy_version, git
     path = os.path.join(os.getcwd(), git_path)
     if not os.path.exists(path) or not os.path.isdir(path):
         sys.exit(f"{path} is not a directory")
-    changes = subprocess.check_output("git log --no-color --oneline".split() + [f"{remote_version}..{to_deploy_version}"],
-                                      cwd=path, text=True)
+    changes = subprocess.check_output(
+        "git log --no-color --oneline".split()
+        + [f"{remote_version}..{to_deploy_version}"],
+        cwd=path,
+        text=True,
+    )
 
     changes = changes.split("\n")
 
     issues = set()
 
-    for change in changes:
-        test = re.match(f"(.*)({jira_prefix}\d+)(.*)", change)
+    def matches_prefix(prefix, candidate):
+        test = re.match(f"(.*)({prefix}\d+)(.*)", candidate)
         if test:
-            issues.add(test.groups()[1])
+            return test.groups()[1]
+        return None
+
+    for change in changes:
+        if isinstance(jira_prefix, list) or isinstance(jira_prefix, tuple):
+            for prefix in jira_prefix:
+                print(prefix)
+                match = matches_prefix(prefix, change)
+                if match:
+                    issues.add(match)
+        else:
+            match = matches_prefix(jira_prefix, change)
+            if match:
+                issues.add(match)
 
     return list(issues)
 
@@ -49,7 +66,9 @@ class JiraReleaseHelper(object):
             password = os.environ["JIRA_PASSWORD"]
             url = os.environ["JIRA_URL"]
         except KeyError:
-            sys.exit("Please set JIRA_USERNAME, JIRA_PASSWORD and JIRA_URL environment variables")
+            sys.exit(
+                "Please set JIRA_USERNAME, JIRA_PASSWORD and JIRA_URL environment variables"
+            )
 
         try:
             self.jira = JIRA(url, basic_auth=(username, password))
